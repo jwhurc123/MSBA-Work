@@ -1,0 +1,464 @@
+---
+title: 'What is the Effect of Foreign Investment on CO2 Emmissions'
+author: "Justin Hurcombe, Riley Kates, and Mike Quach"
+
+date: "12/3/2023"
+output:
+  html_document: default
+  header-includes: \usepackage{color}
+fontsize: 12pt
+margin: 1in
+---
+
+```{r setup, echo=FALSE, message=F, warning=F}
+
+### Setup for RStudio to work with data
+
+#Clear the working space
+    rm(list = ls())
+
+  #Set working directory
+#setwd("C:/Users/Justin Hurcombe/Documents/ECON2509-Econometrics/Final Project")
+#getwd()
+
+#Loads all needed packages
+  
+    library(tidyverse)
+    library(doBy)
+    library(foreign)
+    library(knitr)
+    library(lmtest)
+    library(readstata13)
+    library(sandwich)
+    library(stargazer)
+    library(AER)
+    library(gdata)
+    library(wooldridge)
+    library(openintro)
+    library(readxl)
+    library(readr)
+    library(dplyr)
+
+#Calculates heteroskedastic-robust errors
+
+  cse=function(reg){
+  rob=sqrt(diag(vcovHC(reg,type="HC1")))
+  return(rob)
+  }
+  
+```
+
+
+# Abstract
+
+The study investigates the connection between CO2 emissions and various socio-economic factors, such as foreign direct investment (FDI), GDP per Capita, and sectoral contributions to GDP. The researchers propose a log-linear model that includes squared and cubic terms for FDI and squared terms for log (GDP Per Capita) and examine potential non-linear associations. Although the R-squared values suggest a good model fit, there are concerns regarding the statistical significance of FDI in some models. We conducted hypothesis tests, examined multicollinearity, and considered alternative models, demonstrating an understanding of the complexities involved. The findings are with caution, highlighting their theoretical and practical relevance. However, further refining and considering potential limitations, such as omitted variable bias, would strengthen the regression analysis's robustness and validity.
+
+# Introduction
+
+
+### Question
+
+The objective in this study is to examine what kind of effect foreign direct investment (FDI) has on CO2 emissions in a country. With the strong popularity of globalization today, more countries are investing abroad every year. At the same time, our global climate is increase in an alarming rate. With the high levels of CO2 in the atmosphere, global warming continues to be an issue for generations to come. That's why we are examining a possible connection between foreign investment and CO2 emissions in order to conclude if increasing production and business in foreign countries is also contributing to the climate issue.
+
+
+### Hypothesis
+
+We believe that FDI will have a negative effect, where an increase in foreign investment to another country will decrease CO2 emissions in that country. This is because one of the reasons behind foreign investment is offshoring of production from the countries providing financial capital. As a country offshores its production abroad, there is less overall CO2 emissions as a result of production in its own borders. Conversely, as countries receive foreign investment from other countries, its production capabilities can increase as it uses the money to improve businesses and build factories. The increase in production in these companies should increase their CO2 emissions, meaning a decrease in FDI should increase CO2 emissions.
+
+
+### Data
+
+Data Source:
+
+This data set covers 171 observations and 21 variables about different metrics of almost every country in the world in 2020.
+
+
+**Per_Agri**: % of GDP that is agriculture based
+
+**Bus_Support:** Ease of Doing Business Index. The higher the moment relaxed the regulations for businesses
+
+**Per_Export**: % of GDP from Export
+
+**GDP**: Measure of Gross Domestic Produce of the country
+
+**Per_Industry**: % of GDP that is industry based
+
+**Export**: Total value of export within the year
+
+**Import**: Total of import within the year
+
+**Net.Trade**: Export minus Import (US$ Billions)
+
+**GDP.Per.Capita**: GDP per person (USD thousands)
+
+**Population.Density**: How many people per km2 (thousands per sq. km)
+
+**CO2** : CO2 emissions (Metric Tons per Capita)
+
+**FDI** : Foreign Direct Investment, Net Inflows (US$ Billions)   
+
+**Exporter**: Dummy variable that is 1 if net trade is positive; otherwise it is 0 
+
+```{r data, echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+
+
+### Data section
+
+
+## Creating dataframe from three data sources, all available on worldbank.org
+
+
+# Loads all csv files as separate data frames 
+
+Countries <- read.csv("Countries.csv")
+CO2 <- read.csv("CO2.csv")
+FDI <- read.csv("FDI.csv")
+
+# Creates and formats all dataframes into 2020 economic indicators, CO2 emissions, and FDI net imports per country
+
+Countries_2020 <- Countries[Countries$Year=="2020",]
+CO2_2020 <- CO2[,c("Country.Name","X2020..YR2020.")] %>% rename(CO2=X2020..YR2020.)
+FDI_2020 <- FDI[,c("Country.Name","X2020..YR2020.")] %>% rename(FDI=X2020..YR2020.)
+
+# Merge all three dataframes into one single dataframe
+
+list_df <- list(Countries_2020,CO2_2020,FDI_2020)
+
+Final_Data <- list_df %>% reduce(inner_join, by="Country.Name")
+
+# Rename data columns so it's easier to work with
+
+Final_Data <- rename(Final_Data,Per_Agri=Agriculture....GDP., Bus_Support=Ease.of.Doing.Business, Per_Edu=Education.Expenditure....GDP., Per_Export=Export....GDP., Per_Health=Health.Expenditure....GDP., Per_Import=Import....GDP., Per_Industry=Industry....GDP., Per_Service=Service....GDP.)
+
+# Convert new columns CO2 and FDI from characters to numbers
+
+Final_Data$CO2 <- as.numeric(Final_Data$CO2)
+Final_Data$FDI <- as.numeric(Final_Data$FDI)
+
+
+## Removing NULL values
+
+
+# Finding how much of dataset consists of NULL values
+
+sum(is.na(Final_Data))/(nrow(Final_Data)*ncol(Final_Data)) * 100
+
+sum(is.na(Final_Data))
+
+colSums(is.na(Final_Data))
+
+
+# Removing unnecessary columns: Country.Code, Year, Inflation.Rate, Unemployment, Land, and Continent.Name
+
+Sub_Final_Data <- subset(Final_Data, select= -c(Country.Code,Year,Inflation.Rate,Unemployment,Land,Continent.Name))
+
+
+# Drop rows with NULL values in CO2 and FDI columns
+
+Sub_Final_Data <- subset(Sub_Final_Data, CO2 != ".." & FDI != "..")
+
+# Removing countries with null values in Net Trade, which contain countries with a small or immeasurable amount of foreign trade
+
+Final_Data_With_Trade <- subset(Sub_Final_Data, is.na(Net.Trade) == FALSE)
+
+# Filling any leftover null values with zero. This removes the last of the null values and completes the data cleaning
+
+Project_Data <- replace(Final_Data_With_Trade, is.na(Final_Data_With_Trade), 0)
+
+
+##Dummy Variable for if country is a net exporter. Positive if net trade is greater than 1, and 0 if otherwise
+
+Project_Data$Exporter = ifelse(Project_Data$Net.Trade > 0, 1, 0)
+
+
+## Re-scaling the data so the numbers are easier to interpret
+
+# Dividing GDP, R&D, Population, Export, Import, Education.Expenditure, Health Expenditure, Net Trade, and FDI by 1,000,000,000
+
+Project_Data$GDP <- Project_Data$GDP / 1000000000
+Project_Data$R.D <- Project_Data$R.D / 1000000000
+Project_Data$Population <- Project_Data$Population / 1000000000
+Project_Data$Export <- Project_Data$Export / 1000000000
+Project_Data$Import <- Project_Data$Import / 1000000000
+Project_Data$Education.Expenditure <- Project_Data$Education.Expenditure / 1000000000
+Project_Data$Health.Expenditure <- Project_Data$Health.Expenditure / 1000000000
+Project_Data$Net.Trade <- Project_Data$Net.Trade / 1000000000
+Project_Data$FDI <- Project_Data$FDI / 1000000000
+
+# Dividing Population Density by 1,000
+Project_Data$Population.Density <- Project_Data$Population.Density / 1000
+
+# Dividing GDP Per Capita by 1,000
+Project_Data$GDP.Per.Capita <- Project_Data$GDP.Per.Capita / 1000
+
+
+## Cleans workspace of all dataframes used to build the final dataframe
+
+rm(list=c("CO2","CO2_2020","Countries","Countries_2020","FDI","FDI_2020","list_df","Final_Data", "Sub_Final_Data", "Final_Data_With_Trade"))
+
+## Summarizes the data
+
+  str(Project_Data) 
+  
+
+Project_Data$Exporter = ifelse(Project_Data$Net.Trade > 0, 1, 0)
+Project_Data <- unique(Project_Data)
+
+```
+
+
+
+```{r Descriptive Statistics, echo=FALSE, message=FALSE, warning=FALSE, comment=""}
+
+## Exploratory Data Analysis (EDA)
+
+### Summary Statistics
+
+# Display summary statistics for key variables in the dataset
+
+stargazer(Project_Data, type="text", digits=2, summary.stat=c("n", "mean", "median", "sd"), title="Summary Statistics", flip=FALSE)
+
+```
+
+```{r Plots, echo=FALSE, message=FALSE, warning=FALSE, comment=""}
+
+### These are the scatterplots of the data
+
+
+# Scatterplot of CO2 vs FDI
+
+ggplot(Project_Data, aes(x = FDI, y = CO2)) +
+  geom_point(col = "lightblue3") +
+  labs(title = "Scatterplot of CO2 Emissions vs Foreign Direct Investment",
+       x = "Net Foreign Direct Investment (US$ Billions)",
+       y = "CO2 Emissions (Metric Ton per Capita)")
+
+# Scatterplot of CO2 vs FDI with outliers removed (to show the relationship between CO2 emissions and FDI)
+
+Small_Data <- subset(Project_Data, abs(FDI) < 100)
+
+ggplot(Small_Data, aes(x = FDI, y = CO2)) +
+  geom_point(col = "lightblue3") +
+  labs(title = "Scatterplot of CO2 Emissions vs Foreign Direct Investment (Without Outliers)",
+       x = "Net Foreign Direct Investment (US$ Billions)",
+       y = "CO2 Emissions (Metric Ton per Capita)")
+
+# Creates new variable for the natural log of CO2
+
+Project_Data$log_CO2 <- log(Project_Data$CO2) 
+
+# Scatterplot of log(CO2) vs FDI
+
+ggplot(Project_Data, aes(x = FDI, y = log_CO2)) +
+  geom_point(col = "lightblue3") +
+  labs(title = "Scatterplot of the Natural Log of CO2 Emissions vs Foreign Direct Investment",
+       x = "Net Foreign Direct Investment (US$ Billions)" ,
+       y = "Natural Log of CO2 Emissions")
+
+
+
+```
+
+The original scatterplot (see scatterplot 1) of the data shows a tight group between zero and five metric tons per capita of CO2 emissions, with no apparent relationship between the two variables. However, when we temporarily remove the outliers in foreign direct investment (see scatterplot 2), the data appears to resemble a log function, where it clusters around the chart's origin and increases in a slight curve. With this observation, we took the log of CO2 emissions to see its effect on the scatterplot (see scatterplot 3), and what results is a more linear scatterplot that we can use for OLS regression in our analysis.
+
+# Analysis
+
+### Base Model Regression
+
+```{r regression, echo=FALSE, message=FALSE, warning=FALSE, comment=""}
+
+### Basic Regression
+
+# Runs various regressions on key variables and 
+
+lr1 <- lm(log(CO2)~FDI, data=Project_Data)
+lr2 <- lm(log(CO2)~FDI + log(GDP.Per.Capita) , data=Project_Data)
+lr3 <- lm(log(CO2)~FDI + log(GDP.Per.Capita) + Population.Density, data=Project_Data)
+lr4 <- lm(log(CO2)~FDI + log(GDP.Per.Capita) + Population.Density + Per_Agri, data=Project_Data)
+lr5 <- lm(log(CO2)~FDI + log(GDP.Per.Capita) + Population.Density + Per_Agri + Per_Industry, data=Project_Data)
+lr6 <- lm(log(CO2)~FDI + log(GDP.Per.Capita) + Population.Density+ Per_Agri + Per_Industry + Export + Import, data=Project_Data)
+lr7 <- lm(log(CO2)~FDI + log(GDP.Per.Capita) + Per_Industry + Per_Agri,data=Project_Data)
+
+
+
+stargazer(lr1, lr2, lr3, lr4, lr5, lr6, lr7, se=list(cse(lr1),cse(lr2),cse(lr3),cse(lr4),cse(lr5),cse(lr6),cse(lr7)),
+          title="Factors affecting CO2 Emissions", type="text", star.cutoffs=NA, df=FALSE, digits=3)
+
+
+```
+H0: 	β1| β2 | β3 | β4 | β5 | β6 = 0
+H0: 	β1| β2 | β3 | β4 | β5 | β6 ≠ 0
+
+Model 1:
+FDI: T-score = 1.33 not significant at 5%
+
+Model 2:
+FDI: T-score = 2.00 significant at 5%
+GDP.Per.Capita: T-score = 6.83 significant at 5%
+
+Model 3:
+FDI: T-score = 2.00 significant at 5%
+GDP.Per.Capita: T-score = 6.83 significant at 5%
+Population.Density: T-score = -0.79 not significant at 5%
+
+Model 4:
+FDI: T-score = 2.00 significant at 5%
+GDP.Per.Capita: T-score = 6.83 significant at 5%
+Population.Density: T-score = -1.15 not significant at 5%
+Agriculture....GDP.: T-score = -8.18 significant at 5%
+
+Model 5:
+FDI: T-score = 2.00 significant at 5%
+GDP.Per.Capita: T-score = 3.40 significant at 5%
+Population.Density: T-score = -1.09 not significant at 5%
+Agriculture....GDP.: T-score = -6.46 significant at 5%
+Industry....GDP.: T-score = 2.00 significant at 5%
+
+Model 6:
+FDI: T-score = 3.00 significant at 5%
+GDP.Per.Capita: T-score = 3.80 significant at 5%
+Population.Density: T-score = -0.63 not significant at 5%
+Agriculture....GDP.: T-score = -6.46 significant at 5%
+Industry....GDP.: T-score =  not significant at 5%
+net_trade_dummy: T-score = 0.27 not significant at 5%
+
+Model 7: 
+FDI: T-score = 1.00 significant at 5%
+GDP.Per.Capita: T-score = 3.80 significant at 5%
+Agriculture....GDP.: T-score = 7 significant at 5%
+Industry....GDP.: T-score =  2 significant at 5%
+
+
+```{r F test, echo=FALSE, message=FALSE, warning=FALSE, comment=""}
+
+### F-tests conducted to determine if variables should be included in the model
+
+# F-test on whether Per_Industry and Per_Agri are both statistically different from zero in model 6
+
+lht(lr6,c("Per_Industry=0","Per_Agri=0"), white.adjust="hc1")
+
+# F-test on whether Export and Import are both statistically different form zero in model 6
+
+lht(lr6, c("Export=0", "Import=0"), white.adjust="hc1")
+
+
+```
+H0: Per_Industry =0 and Per_Agri =0
+H1: Per_Industry ≠ 0 and/or Per_Agri ≠ 0
+At 5%, the F-statistic is 11.739 > 3. We can reject the null hypothesis and conclude that one or both variables are different from 0.
+
+H0: Export =0 and Import =0
+H1: Export ≠ 0 and/or Import ≠ 0
+At 5%, P value of restricted model is 1.3127 < 3. We cannot reject the null hypothesis, and we conclude that both variables are not statistically different from 0.
+
+As such the base model will be lr7: log(CO2)~FDI + log(GDP.Per.Capita) + Per_Agri + Per_Industry
+
+
+### Alternative Regression Specifications
+
+```{r alternative models, echo=FALSE, message=FALSE, warning=FALSE, comment=""}
+
+### Here is where we test alternate regression models based on the the base model found above.
+
+
+## Alternate regression part 1: quadratic and cubic models vs linear model
+
+# Alternate regression 1: adding FDI squared to the base model
+
+ar1 <- lm(log(CO2)~FDI+I(log(GDP.Per.Capita))+Per_Industry+Per_Agri+I(FDI^2),data=Project_Data)
+
+# Alternate regression 2: adding FDI squared and FDI cubed to the base model
+
+ar2 <- lm(log(CO2)~FDI+I(log(GDP.Per.Capita))+Per_Industry+Per_Agri+I(FDI^2)+I(FDI^3),data=Project_Data)
+
+
+## Alternate regression part 2: adding additional regressors to the base model
+
+# Alternate regression 3: adding education expenditure (% GDP) to base model
+
+ar3 <- lm(log(CO2)~FDI+I(log(GDP.Per.Capita))+Per_Industry+Per_Agri+Per_Edu,data=Project_Data)
+
+# Alternate regression 4: adding health expenditure (% GDP) to base model
+
+ar4 <- lm(log(CO2)~FDI+I(log(GDP.Per.Capita))+Per_Industry+Per_Agri+Per_Health,data=Project_Data)
+
+# Alternate regression 5: adding education expenditure (% GDP) and health expenditure (% GDP) to base model
+
+ar5 <- lm(log(CO2)~FDI+I(log(GDP.Per.Capita))+Per_Industry+Per_Agri+Per_Edu+Per_Health,data=Project_Data)
+
+
+## Alternate regression part 3: taking the square of the natural log of GDP per Capita to reflect the quadratic relationship with GDP per Capita and Environment Degradation shown in the Kuznetz Curve.
+
+# Alternate regression 6: natural log of GDP per Capita squared
+
+ar6 <- lm(log(CO2)~FDI + I(log(GDP.Per.Capita)) + I(log(GDP.Per.Capita)^2) + Per_Industry + Per_Agri,data=Project_Data)
+
+
+## Alternate regression part 4: does innovation help climate change?
+
+# Alternate regression 7: including all possible interaction variables between FDI, R.D, log(GDP.Per.Capita), and Bus_Support
+
+ar7 <- lm(log(CO2)~FDI+I(log(GDP.Per.Capita))+Per_Industry+Per_Agri+Bus_Support+R.D+FDI:R.D+FDI:I(log(GDP.Per.Capita))+R.D:I(log(GDP.Per.Capita))+FDI:Bus_Support+Bus_Support:I(log(GDP.Per.Capita)), data=Project_Data)
+
+
+# Alternate regression 8: regression 7 with removing any interaction variables that fail a t-test
+
+ar8 <- lm(log(CO2)~FDI+I(log(GDP.Per.Capita))+Per_Industry+Per_Agri+Bus_Support+R.D+Bus_Support:I(log(GDP.Per.Capita)), data=Project_Data)
+
+
+## Displays alternate models onto one table
+
+stargazer(ar1, ar2, ar3, ar4, ar5, ar6, ar7, ar8, se=list(cse(ar1),cse(ar2),cse(ar3),cse(ar4),cse(ar5),cse(ar6),cse(ar7),cse(ar8)),
+          title="Alternative Regression Models", type="text", star.cutoffs=NA, df=FALSE, digits=3)
+
+
+# F-test to see if Per_Edu and Per_Health are together statistically different from zero
+
+lht(ar5,c("Per_Edu=0","Per_Health=0"),white.adjust="hc1")
+
+# F-test to see if Bus_Support and R.D variables are together statistically different from zero
+
+lht(ar7,c("Bus_Support=0","R.D=0"),white.adjust="hc1")
+
+
+```
+
+After assessing the alternative models, we found through the first two regressions that FDI squared and FDI cubed both have coefficients equal to zero. This means they have no statistically significant on the model, and we can conclude that the relationship between net FDI and CO2 emissions is linear. 
+
+Next, we added some additional variables that affect a nation's GDP, but might not directly affect CO2 emissions. The variables were decided to be education and health expenditures as a % of a nation's GDP. Once we added education expenditure and health expenditure separately as a percent of GDP, we found both of their coefficients are statistically insignificant. In addition, after adding both variables into the base model and conducting an F-test, we found that both coefficients are jointly insignificant. This confirms our conclusion that education and health expenditures don't have a significant effect on a nation's GDP.
+
+Third, we closer examined the relationship between GDP per Capita and CO2 emissions. The Kuznetz curve describes that GDP per Capita has an inverse quadratic relationship with environmental degradation. To examine this relationship and its effect on the model, we took the square of log(GDP.Per.Capita). While FDI stays the same as the base model, the adjusted R-square value increased by 0.042, showing the model better fits the data. In addition, the variable Per_Agri is no longer statistically significant. Finally, the log(GDP.Per.Capita)^2 is statistically significant. Now the change in CO2 emissions with respect to GDP per Capita is represented by the partial derivative:
+
+dlog(CO2)/dlog(GDP.Per.Capita) = 1.316 - 0.284 * log(GDP.Per.Capita)
+
+This shows that a 1% increase in GDP per Capita will increase CO2 emissions by 1.316 - 0.284 * log(GDP.Per.Capita) percent on average, holding all other variables constant. However, this relationship decreases up until a certain point, then CO2 emissions will decrease as the GDP per Capita of a country increases. This is consistent with the relationship described by the Kuznetz curve, and it seems that FDI has a statistically insignificant effect on CO2 emissions.
+
+Finally, we tested several terms reflecting any interactions between a country's FDI, R&D, Ease of Business Index, and their GDP per Capita (represented as log(GDP.Per.Capita)). We did this because these factors interact with each other in the economy, so it makes sense to see how these additional variables influence FDI and its relationship with CO2 emissions. While Bus_Support and R.D were statistically significant and added in this model, the only interaction term that was statistically significant was between Bus_Support and the log(GDP.Per.Capita). This relationship is decribed by the partial derivative:
+
+dlog(CO2)/dlog(GDP.Per.Capita) = 1.738 - 0.016 * Bus_Support
+
+
+This shows that a 1% increase in GDP per Capita will increase CO2 emissions by 1.738 - 0.016 * Bus_Support percent on average, holding all other variables constant. While the relationship between GDP per Capita and and CO2 emissions decreases as their Ease of Business Index increases, countries would need an index of 108.625 for no relationship between the two, which is impossible. Therefore, the model specifications with interaction terms show that there will always be a direct relationship between CO2 emissions and GDP per Capita, regardless of the country's Ease of Business Index.
+
+
+
+# Results
+
+After conducting our analysis, we have found weak statistical significance in the relationship between FDI and CO2. In our base model, we found that FDI is not statistically different from zero at a 5% significance level. The same findings were true in our alternative specifications, where FDI was statistically insignificant in half of the alternate models. While there is some evidence in our analysis that there might be a relationship between FDI and CO2, there is too much evidence against it for us to conclude that there is a definitive causal relationship between the two variables.
+
+In addition, we found there is weak economical significance between FDI and CO2 as well. With FDI being represented in billions, the majority of our models had a significant Beta between 0.002 and 0.003. This means that, by increasing FDI by $1 billion, we would increase CO2 emissions in a country, on average, by at most 0.3%, holding all other variables constant. Unfortunately the change is marginal considering the large shift in foreign investment needed to incur that change. It wouldn't be feasible to shift all the money in foreign investment needed for a reasonable change, and that is why there is little economic significance between the two variables.
+
+It is also worth mentioning that there is a significant relationship, both economic and statistical, relationship between GDP per Capita and CO2 emissions. It's Betas were statistically significant throughout all the models at 5% significance level, and it had an a Beta between 0.75 and 0.87 (excluding the alternative models). This means that, at most, a 1% increase in GDP per Capita will increase CO2 emissions on average by 0.87%. This is much more attainable that the relationship between FDI and CO2, and we believe this shows more economic significance between GDP per Capita and CO2 emissions. With this and other economic theories supporting the relationship behind GDP per Capita and CO2 emissions, we found that this relationship was more significant than the relationship we examined in this study,
+
+
+# Conclusion
+
+  The regression analysis provides information between the FDI and CO2 emissions, focusing on economic and demographic factors. The internal validity is dependent on certain assumptions. While the regression attempts to establish a causal link between FDI and CO2 emissions, it inherently captures associations rather than causation. Omitted variable bias remains a concern, as crucial factors such as government policies or technological advancements are not included, potentially influencing the estimated coefficients.
+	
+Considering external validity is crucial since the study's use of a specific dataset raises questions about the generalizability of results to other populations or time periods. The reliability of the data sources for FDI, CO2 emissions, and other variables may impact the study's credibility if not accurately measured or reported. The external validity may have been affected by the 2020 dataset. Due to the COVID-19 pandemic and rapid changes in global conditions during this period, whether the findings can be generalized to the following years is still being determined. The pandemic has resulted in changes in economic and environmental policies that may have altered the relationship between foreign investment and CO2 emissions. Although the study offers valuable insights, researchers and policymakers should be mindful of the temporal constraints and caution when extrapolating these findings beyond the specific conditions of 2020.
+	
+Model specification choices, including the functional form and inclusion of interaction terms, introduce further complexities. Sensitivity analyses and exploration of alternative specifications could enhance the robustness of the results. Statistical concerns such as multicollinearity and endogeneity must also be addressed, with checks like the variance inflation factor and instrumental variable approaches to ensure the stability of coefficient estimates.
+	
+In conclusion, our analysis of the factors influencing CO2 emissions reveals slight patterns in the role of FDI. FDI only inconsistently directly and significantly impacts CO2 emissions in all models. The quadratic relationship between log (GDP.Per.Capita) and CO2 emissions supports the Kuznetz curve hypothesis, indicating that environmental decline may decrease beyond a certain threshold of economic development. The interactions involving business support and R&D highlight the need to consider multifaceted factors in formulating environmental policy. 
+	
+Our findings underscore the importance of conducting contextual analyses when assessing the relationship between economic indicators and environmental outcomes. Policymakers must consider the unique circumstances of individual nations when formulating strategies to mitigate CO2 emissions and acknowledge that FDI alone may not be a decisive factor. This study contributes to the ongoing discourse on sustainable development by providing insights into the complex interplay between economic growth, foreign investment, and environmental impact.
