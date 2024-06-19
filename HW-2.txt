@@ -1,0 +1,91 @@
+(base) C:\Users\Justin_Hurcombe.PF164PM6>cd Spark\spark-3.5.1\bin
+
+(base) C:\Users\Justin_Hurcombe.PF164PM6\Spark\spark-3.5.1\bin>pyspark
+Python 3.9.19 (main, Mar 21 2024, 17:21:27) [MSC v.1916 64 bit (AMD64)] on win32
+Type "help", "copyright", "credits" or "license" for more information.
+Setting default log level to "WARN".
+To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+24/04/25 17:11:00 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+Welcome to
+      ____              __
+     / __/__  ___ _____/ /__
+    _\ \/ _ \/ _ `/ __/  '_/
+   /__ / .__/\_,_/_/ /_/\_\   version 3.5.1
+      /_/
+
+Using Python version 3.9.19 (main, Mar 21 2024 17:21:27)
+Spark context Web UI available at http://172.31.196.26:4040
+Spark context available as 'sc' (master = local[*], app id = local-1714090264491).
+SparkSession available as 'spark'.
+>>> rdd = sc.textFile(r"C:\Users\Justin_Hurcombe.PF164PM6\Desktop\cities.txt",3)
+>>> rdd.collect()
+[Stage 0:>
+[Stage 0:=======================================================
+
+['alex,Cupertino,5', 'jane,Cupertino,8', 'jeff,Cupertino,6', 'jeff,Cupertino,8', 'alex,Sunnyvale,10', 'jane,Sunnyvale,8', 'jeff,Sunnyvale,3', 'alex,Stanford,8', 'jane,Stanford,8', 'jeff,Stanford,10', 'jeff,Stanford,10', 'bob,Sunnyvale,10', 'rafa,Sunnyvale,10', 'jane,Sunnyvale,4', 'jane,Sunnyvale,10', 'david,Ames,8', 'alex,Ames,10', 'jane,Ames,10', 'jeff,Ames,10', 'jeff,Saratoga,8', 'alex,Saratoga,1', 'jane,Saratoga,7', 'jeff,Saratoga,4', 'alex,Stanford,8', 'jane,Stanford,8', 'jeff,Stanford,10', 'jeff,Stanford,10', 'bob,Sunnyvale,10', 'rafa,Oakland,34', 'jane,Oakland,4', 'jane,Oakland,1', 'jane,Fremont,6', 'jane,Fremont,3', 'jane,Fremont,1']
+>>> print(rdd.getNumPartitions())
+3
+>>>
+>>> def tokenize(value):
+...     tokens = value.split(",")
+...     city_name = tokens[1]
+...     city_rating = int(tokens[2])
+...	key_value = (city_name, city_rating)
+...     return key_value
+...
+>>> # Test of tokenize function
+>>> tokenize('alex,Cupertino,5')
+('Cupertino', 5)
+>>> # Apply tokenize function to rdd through .map() function
+>>> rdd2 = rdd.map(tokenize)
+>>> rdd2.collect()
+[Stage 1:>
+
+[('Cupertino', 5), ('Cupertino', 8), ('Cupertino', 6), ('Cupertino', 8), ('Sunnyvale', 10), ('Sunnyvale', 8), ('Sunnyvale', 3), ('Stanford', 8), ('Stanford', 8), ('Stanford', 10), ('Stanford', 10), ('Sunnyvale', 10), ('Sunnyvale', 10), ('Sunnyvale', 4), ('Sunnyvale', 10), ('Ames', 8), ('Ames', 10), ('Ames', 10), ('Ames', 10), ('Saratoga', 8), ('Saratoga', 1), ('Saratoga', 7), ('Saratoga', 4), ('Stanford', 8), ('Stanford', 8), ('Stanford', 10), ('Stanford', 10), ('Sunnyvale', 10), ('Oakland', 34), ('Oakland', 4), ('Oakland', 1), ('Fremont', 6), ('Fremont', 3), ('Fremont', 1)]
+>>>
+>>> # filter out records with ratings below 2, above 10, and out of the scale of 1 to 10
+>>> rdd2_filtered = rdd2.filter(lambda x: x[1] in range(2,11))
+>>> rdd2_filtered.collect()
+[Stage 13:>
+
+[('Cupertino', 5), ('Cupertino', 8), ('Cupertino', 6), ('Cupertino', 8), ('Sunnyvale', 10), ('Sunnyvale', 8), ('Sunnyvale', 3), ('Stanford', 8), ('Stanford', 8), ('Stanford', 10), ('Stanford', 10), ('Sunnyvale', 10), ('Sunnyvale', 10), ('Sunnyvale', 4), ('Sunnyvale', 10), ('Ames', 8), ('Ames', 10), ('Ames', 10), ('Ames', 10), ('Saratoga', 8), ('Saratoga', 7), ('Saratoga', 4), ('Stanford', 8), ('Stanford', 8), ('Stanford', 10), ('Stanford', 10), ('Sunnyvale', 10), ('Oakland', 4), ('Fremont', 6), ('Fremont', 3)]
+>>>
+>>> # create key/value pair ('cities_with_rating_of_10', city_name) when city_rating == 10
+>>> rdd3 = rdd2_filtered.flatMap(lambda x: [(x[0],x[1]),('cities
+_with_rating_of_10',x[0])] if x[1] == 10 else [(x[0],x[1])])
+>>> rdd3.collect()
+[Stage 5:>
+
+[('Cupertino', 5), ('Cupertino', 8), ('Cupertino', 6), ('Cupertino', 8), ('Sunnyvale', 10), ('cities_with_rating_of_10', 'Sunnyvale'), ('Sunnyvale', 8), ('Sunnyvale', 3), ('Stanford', 8), ('Stanford', 8), ('Stanford', 10), ('cities_with_rating_of_10', 'Stanford'), ('Stanford', 10), ('cities_with_rating_of_10', 'Stanford'), ('Sunnyvale', 10), ('cities_with_rating_of_10', 'Sunnyvale'), ('Sunnyvale', 10), ('cities_with_rating_of_10', 'Sunnyvale'), ('Sunnyvale', 4), ('Sunnyvale', 10), ('cities_with_rating_of_10', 'Sunnyvale'), ('Ames', 8), ('Ames', 10), ('cities_with_rating_of_10', 'Ames'), ('Ames', 10), ('cities_with_rating_of_10', 'Ames'), ('Ames', 10), ('cities_with_rating_of_10', 'Ames'), ('Saratoga', 8), ('Saratoga', 7), ('Saratoga', 4), ('Stanford', 8), ('Stanford', 8), ('Stanford', 10), ('cities_with_rating_of_10', 'Stanford'), ('Stanford', 10), ('cities_with_rating_of_10', 'Stanford'), ('Sunnyvale', 10), ('cities_with_rating_of_10', 'Sunnyvale'), ('Oakland', 4), ('Fremont', 6), ('Fremont', 3)]
+>>>
+>>> # Sort & Shuffle
+>>> rdd3_grouped = rdd3.groupByKey()
+>>> rdd3_grouped.mapValues(list).collect()
+[Stage 6:>
+[Stage 7:>
+
+[('Sunnyvale', [10, 8, 3, 10, 10, 4, 10, 10]), ('Ames', [8, 10, 10, 10]), ('Saratoga', [8, 7, 4]), ('Fremont', [6, 3]), ('cities_with_rating_of_10', ['Sunnyvale', 'Stanford', 'Stanford', 'Sunnyvale', 'Sunnyvale', 'Sunnyvale', 'Ames', 'Ames', 'Ames', 'Stanford', 'Stanford', 'Sunnyvale']), ('Oakland', [4]), ('Cupertino', [5, 8, 6, 8]), ('Stanford', [8, 8, 10, 10, 8, 8, 10, 10])]
+>>> def reduction(key_value):
+...   key = key_value[0]
+...   values = key_value[1]
+...   if key == 'cities_with_rating_of_10':
+...     return (key, set(values))
+...   else:
+...     avg = sum(values) / len(values)
+...     if (avg >= 4.00):
+...       return(key, avg)
+...
+>>>
+>>> # Apply the reduction to key/value pair using .map() function 
+>>> rdd_final = rdd3_grouped.map(reduction)
+>>>
+>>> rdd_final.sortByKey().collect()
+[Stage 9:>
+
+[Stage 11:>
+
+[Stage 13:>
+[Stage 14:>
+
+[('Ames', 9.5), ('Cupertino', 6.75), ('Fremont', 4.5), ('Oakland', 4.0), ('Saratoga', 6.333333333333333), ('Stanford', 9.0), ('Sunnyvale', 8.125), ('cities_with_rating_of_10', {'Ames', 'Stanford', 'Sunnyvale'})]
+>>>

@@ -1,0 +1,66 @@
+
+(base) C:\Users\Justin_Hurcombe.PF164PM6>cd Spark\spark-3.5.1\bin\pyspark
+The directory name is invalid.
+
+(base) C:\Users\Justin_Hurcombe.PF164PM6>cd Spark\spark-3.5.1\bin\ pyspark
+The system cannot find the path specified.
+
+(base) C:\Users\Justin_Hurcombe.PF164PM6>cd Spark\spark-3.5.1\bin\
+
+(base) C:\Users\Justin_Hurcombe.PF164PM6\Spark\spark-3.5.1\bin>pyspark
+Python 3.9.19 (main, Mar 21 2024, 17:21:27) [MSC v.1916 64 bit (AMD64)] on win32
+Type "help", "copyright", "credits" or "license" for more information.
+Setting default log level to "WARN".
+To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+24/05/02 09:46:29 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+Welcome to
+      ____              __
+     / __/__  ___ _____/ /__
+    _\ \/ _ \/ _ `/ __/  '_/
+   /__ / .__/\_,_/_/ /_/\_\   version 3.5.1
+      /_/
+
+Using Python version 3.9.19 (main, Mar 21 2024 17:21:27)
+Spark context Web UI available at http://10.0.0.72:4040
+Spark context available as 'sc' (master = local[*], app id = local-1714668394408).
+SparkSession available as 'spark'.
+>>>
+>>>
+>>> nums = [0,1,-4,2,-7,6,5,3,-8,-3,-2,-4,0,3,4,5,0,-6,-3,0,3]
+>>> rdd = sc.parallelize(nums,3)
+>>> rdd.getNumPartitions()
+3
+>>> # function to get list of elements in each partition
+>>> def f(iterator):
+...     print("elements", list(iterator))
+...
+>>>
+>>> # function to get counts for each partition
+>>>
+>>> def count(partition):
+...     Z = 0
+...     N = 0
+...     P = 0
+...     for value in partition:
+...             if value == 0:
+...                     Z += 1
+...             if value < 0:
+...                     N += 1
+...             if value > 0:
+...                     P += 1
+...     return [(Z,N,P)]
+...
+>>> rdd.mapPartitions(count).collect()
+[Stage 6:>
+
+[(1, 2, 4), (1, 4, 2), (2, 2, 3)]
+>>>
+>>> # check work for each partition
+>>>
+>>> rdd.foreachPartition(f)
+[Stage 7:>
+elements [0, 1, -4, 2, -7, 6, 5]
+elements [3, -8, -3, -2, -4, 0, 3]
+elements [4, 5, 0, -6, -3, 0, 3]
+
+>>>
