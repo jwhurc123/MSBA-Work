@@ -1,1 +1,1 @@
-
+This is my final project for my Marketing Analytics class. Our task was to find three interesting things in the data, which is the online retail data of an anonmous client, and provide recommendations based on these findings. My key contribution in this project involves using K-Means Clustering to identify three market segments in their customers, and providing recommendations to the client to adjust their marketing strategy to cater to each specific market segment.
