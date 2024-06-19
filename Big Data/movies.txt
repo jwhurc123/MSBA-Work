@@ -1,6 +1,0 @@
-movie1,3
-movie1,1
-movie1,5
-movie2,5
-movie2,4
-movie2,3
